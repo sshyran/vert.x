@@ -16,19 +16,20 @@ import io.vertx.core.Vertx;
 /**
  * @author <a href="mailto:julien@julienviet.com">Julien Viet</a>
  */
-public class BenchmarkContext extends ContextImpl {
+public class BenchmarkContext {
 
-  public static BenchmarkContext create(Vertx vertx) {
+  public static ContextImpl create(Vertx vertx) {
     VertxImpl impl = (VertxImpl) vertx;
-    return new BenchmarkContext(
+    return new ContextImpl(
       impl,
+      ContextImpl.KIND_BENCHMARK,
+      impl.getEventLoopGroup().next(),
       impl.internalWorkerPool,
       impl.workerPool,
-      Thread.currentThread().getContextClassLoader()
+      null,
+      null,
+      Thread.currentThread().getContextClassLoader(),
+      false
     );
-  }
-
-  public BenchmarkContext(VertxInternal vertx, WorkerPool internalBlockingPool, WorkerPool workerPool, ClassLoader tccl) {
-    super(vertx, KIND_BENCHMARK, vertx.getEventLoopGroup().next(), internalBlockingPool, workerPool, null, null, tccl, false);
   }
 }

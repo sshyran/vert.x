@@ -472,27 +472,27 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   @Override
-  public EventLoopContext createEventLoopContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new EventLoopContext(this, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+  public AbstractContext createEventLoopContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
+    return new ContextImpl(this, ContextImpl.KIND_EVENT_LOOP, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public EventLoopContext createEventLoopContext(EventLoop eventLoop, WorkerPool workerPool, ClassLoader tccl) {
-    return new EventLoopContext(this, eventLoop, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, null, closeFuture, tccl, disableTCCL);
+  public AbstractContext createEventLoopContext(EventLoop eventLoop, WorkerPool workerPool, ClassLoader tccl) {
+    return new ContextImpl(this, ContextImpl.KIND_EVENT_LOOP, eventLoop, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, null, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public EventLoopContext createEventLoopContext() {
+  public AbstractContext createEventLoopContext() {
     return createEventLoopContext(null, closeFuture, null, Thread.currentThread().getContextClassLoader());
   }
 
   @Override
-  public WorkerContext createWorkerContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new WorkerContext(this, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+  public AbstractContext createWorkerContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
+    return new ContextImpl(this, ContextImpl.KIND_WORKER, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public WorkerContext createWorkerContext() {
+  public AbstractContext createWorkerContext() {
     return createWorkerContext(null, closeFuture, null, Thread.currentThread().getContextClassLoader());
   }
 

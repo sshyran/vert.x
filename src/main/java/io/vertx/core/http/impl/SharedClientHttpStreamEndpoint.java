@@ -16,7 +16,6 @@ import io.vertx.core.Handler;
 import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.impl.ContextInternal;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.net.impl.pool.ConnectResult;
 import io.vertx.core.net.impl.pool.ConnectionPool;
 import io.vertx.core.net.impl.pool.PoolConnection;
@@ -75,7 +74,7 @@ class SharedClientHttpStreamEndpoint extends ClientHttpEndpointBase<Lease<HttpCl
   }
 
   @Override
-  public void connect(EventLoopContext context, Listener listener, Handler<AsyncResult<ConnectResult<HttpClientConnection>>> handler) {
+  public void connect(ContextInternal context, Listener listener, Handler<AsyncResult<ConnectResult<HttpClientConnection>>> handler) {
     connector.httpConnect(context, ar -> {
       if (ar.succeeded()) {
         incRefCount();
@@ -119,13 +118,13 @@ class SharedClientHttpStreamEndpoint extends ClientHttpEndpointBase<Lease<HttpCl
 
   private class Request implements PoolWaiter.Listener<HttpClientConnection>, Handler<AsyncResult<Lease<HttpClientConnection>>> {
 
-    private final EventLoopContext context;
+    private final ContextInternal context;
     private final HttpVersion protocol;
     private final long timeout;
     private final Handler<AsyncResult<Lease<HttpClientConnection>>> handler;
     private long timerID;
 
-    Request(EventLoopContext context, HttpVersion protocol, long timeout, Handler<AsyncResult<Lease<HttpClientConnection>>> handler) {
+    Request(ContextInternal context, HttpVersion protocol, long timeout, Handler<AsyncResult<Lease<HttpClientConnection>>> handler) {
       this.context = context;
       this.protocol = protocol;
       this.timeout = timeout;
@@ -166,7 +165,7 @@ class SharedClientHttpStreamEndpoint extends ClientHttpEndpointBase<Lease<HttpCl
 
   @Override
   public void requestConnection2(ContextInternal ctx, long timeout, Handler<AsyncResult<Lease<HttpClientConnection>>> handler) {
-    Request request = new Request((EventLoopContext) ctx, client.getOptions().getProtocolVersion(), timeout, handler);
+    Request request = new Request(ctx, client.getOptions().getProtocolVersion(), timeout, handler);
     request.acquire();
   }
 }

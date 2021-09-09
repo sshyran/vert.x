@@ -16,7 +16,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.http.ConnectionPoolTooBusyException;
-import io.vertx.core.impl.EventLoopContext;
+import io.vertx.core.impl.ContextInternal;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ import java.util.function.Predicate;
  *
  * <h3>Waiter lifecycle</h3>
  *
- * Connection requests are done with {@link ConnectionPool#acquire(EventLoopContext, int, Handler)}. Such request
+ * Connection requests are done with {@link ConnectionPool#acquire(ContextInternal, int, Handler)}. Such request
  * creates a {@link PoolWaiter}. When such request is made
  *
  * <ul>
@@ -114,7 +114,7 @@ public class SimpleConnectionPool<C> implements ConnectionPool<C> {
   static class Slot<C> implements PoolConnector.Listener, PoolConnection<C> {
 
     private final SimpleConnectionPool<C> pool;
-    private final EventLoopContext context;
+    private final ContextInternal context;
     private final Promise<C> result;
     private PoolWaiter<C> initiator;
     private C connection;    // The actual connection, might be null
@@ -123,7 +123,7 @@ public class SimpleConnectionPool<C> implements ConnectionPool<C> {
     private int maxConcurrency; // The connection maximum concurrency
     private int capacity;      // The connection capacity
 
-    public Slot(SimpleConnectionPool<C> pool, EventLoopContext context, int index, int capacity) {
+    public Slot(SimpleConnectionPool<C> pool, ContextInternal context, int index, int capacity) {
       this.pool = pool;
       this.context = context;
       this.connection = null;
@@ -494,7 +494,7 @@ public class SimpleConnectionPool<C> implements ConnectionPool<C> {
 
   private static class Acquire<C> extends PoolWaiter<C> implements Executor.Action<SimpleConnectionPool<C>> {
 
-    public Acquire(EventLoopContext context, PoolWaiter.Listener<C> listener, int capacity, Handler<AsyncResult<Lease<C>>> handler) {
+    public Acquire(ContextInternal context, PoolWaiter.Listener<C> listener, int capacity, Handler<AsyncResult<Lease<C>>> handler) {
       super(listener, context, capacity, handler);
     }
 
@@ -551,11 +551,11 @@ public class SimpleConnectionPool<C> implements ConnectionPool<C> {
   }
 
   @Override
-  public void acquire(EventLoopContext context, PoolWaiter.Listener<C> listener, int kind, Handler<AsyncResult<Lease<C>>> handler) {
+  public void acquire(ContextInternal context, PoolWaiter.Listener<C> listener, int kind, Handler<AsyncResult<Lease<C>>> handler) {
     execute(new Acquire<>(context, listener, capacityFactors[kind], handler));
   }
 
-  public void acquire(EventLoopContext context, int kind, Handler<AsyncResult<Lease<C>>> handler) {
+  public void acquire(ContextInternal context, int kind, Handler<AsyncResult<Lease<C>>> handler) {
     acquire(context, PoolWaiter.NULL_LISTENER, kind, handler);
   }
 

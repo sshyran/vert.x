@@ -160,7 +160,7 @@ class DuplicatedContext extends AbstractContext {
 
   @Override
   public final <T> void execute(T argument, Handler<T> task) {
-    delegate.execute(this, argument, task);
+    delegate.execute(argument, task);
   }
 
   @Override
@@ -170,7 +170,7 @@ class DuplicatedContext extends AbstractContext {
 
   @Override
   public void execute(Runnable task) {
-    delegate.execute(this, task);
+    delegate.execute(task);
   }
 
   @Override

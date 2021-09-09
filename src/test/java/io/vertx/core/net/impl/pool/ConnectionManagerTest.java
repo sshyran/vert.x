@@ -14,7 +14,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.impl.ContextInternal;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.test.core.VertxTestBase;
 import org.junit.Test;
 
@@ -41,7 +40,7 @@ public class ConnectionManagerTest extends VertxTestBase {
   }
 
   private void testGetConnection(boolean success) {
-    EventLoopContext ctx = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal ctx = (ContextInternal) vertx.getOrCreateContext();
     Connection result = new Connection();
     Throwable failure = new Throwable();
     ConnectionManager<Object, Connection> mgr = new ConnectionManager<>(new EndpointProvider<Object, Connection>() {
@@ -84,7 +83,7 @@ public class ConnectionManagerTest extends VertxTestBase {
   }
 
   private void testDispose(boolean closeConnectionAfterCallback) {
-    EventLoopContext ctx = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal ctx = (ContextInternal) vertx.getOrCreateContext();
     Connection expected = new Connection();
     boolean[] disposed = new boolean[1];
     ConnectionManager<Object, Connection> mgr = new ConnectionManager<>(new EndpointProvider<Object, Connection>() {
@@ -121,7 +120,7 @@ public class ConnectionManagerTest extends VertxTestBase {
 
   @Test
   public void testCloseManager() throws Exception {
-    EventLoopContext ctx = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal ctx = (ContextInternal) vertx.getOrCreateContext();
     Connection expected = new Connection();
     boolean[] disposed = new boolean[1];
     ConnectionManager<Object, Connection> mgr = new ConnectionManager<>(new EndpointProvider<Object, Connection>() {
@@ -158,7 +157,7 @@ public class ConnectionManagerTest extends VertxTestBase {
 
   @Test
   public void testCloseManagerImmediately() {
-    EventLoopContext ctx = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal ctx = (ContextInternal) vertx.getOrCreateContext();
     Connection expected = new Connection();
     boolean[] disposed = new boolean[1];
     AtomicReference<Runnable> adder = new AtomicReference<>();
@@ -184,7 +183,7 @@ public class ConnectionManagerTest extends VertxTestBase {
 
   @Test
   public void testConcurrentDispose() throws Exception {
-    EventLoopContext ctx = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal ctx = (ContextInternal) vertx.getOrCreateContext();
     ConcurrentLinkedQueue<AtomicBoolean> disposals = new ConcurrentLinkedQueue<>();
     ConnectionManager<Object, Connection> mgr = new ConnectionManager<>(new EndpointProvider<Object, Connection>() {
       @Override

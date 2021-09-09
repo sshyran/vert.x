@@ -13,7 +13,6 @@ package io.vertx.core.http.impl;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.impl.ContextInternal;
 import io.vertx.core.spi.metrics.ClientMetrics;
 
@@ -82,7 +81,7 @@ class WebSocketEndpoint extends ClientHttpEndpointBase<HttpClientConnection> {
     }
 
     connector
-      .httpConnect((EventLoopContext) ctx, new Listener());
+      .httpConnect(ctx, new Listener());
   }
 
   @Override

@@ -16,7 +16,6 @@ import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
 import io.vertx.core.impl.ContextInternal;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.impl.future.PromiseInternal;
 import io.vertx.core.impl.VertxInternal;
 import io.vertx.core.impl.logging.Logger;
@@ -173,7 +172,7 @@ public class HttpServerImpl extends TCPServerBase implements HttpServer, Closeab
     return this;
   }
 
-  private Handler<Channel> childHandler(EventLoopContext context,
+  private Handler<Channel> childHandler(ContextInternal context,
                                         Supplier<ContextInternal> streamContextSupplier,
                                         HttpServerConnectionHandler handlers,
                                         Handler<Throwable> exceptionHandler,
@@ -198,9 +197,9 @@ public class HttpServerImpl extends TCPServerBase implements HttpServer, Closeab
       throw new IllegalStateException("Set request or WebSocket handler first");
     }
     ContextInternal listenContext = vertx.getOrCreateContext();
-    EventLoopContext connContext;
-    if (listenContext instanceof EventLoopContext) {
-      connContext = (EventLoopContext) listenContext;
+    ContextInternal connContext;
+    if (listenContext.isEventLoopContext()) {
+      connContext = listenContext;
     } else {
       connContext = vertx.createEventLoopContext(listenContext.nettyEventLoop(), listenContext.workerPool(), listenContext.classLoader());
     }

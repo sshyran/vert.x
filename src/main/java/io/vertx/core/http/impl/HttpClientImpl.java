@@ -18,7 +18,6 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.*;
 import io.vertx.core.http.*;
 import io.vertx.core.impl.CloseFuture;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.impl.NetClientImpl;
 import io.vertx.core.net.impl.ProxyFilter;
@@ -276,7 +275,7 @@ public class HttpClientImpl implements HttpClient, MetricsProvider, Closeable {
    * Connect to a server.
    */
   public Future<HttpClientConnection> connect(SocketAddress server, SocketAddress peer) {
-    EventLoopContext context = (EventLoopContext) vertx.getOrCreateContext();
+    ContextInternal context = vertx.getOrCreateContext();
     Promise<HttpClientConnection> promise = context.promise();
     HttpChannelConnector connector = new HttpChannelConnector(this, netClient, null, null, options.getProtocolVersion(), options.isSsl(), options.isUseAlpn(), peer, server);
     connector.httpConnect(context, promise);
@@ -300,9 +299,9 @@ public class HttpClientImpl implements HttpClient, MetricsProvider, Closeable {
     }
     EndpointKey key = new EndpointKey(connectOptions.isSsl() != null ? connectOptions.isSsl() : options.isSsl(), proxyOptions, addr, addr);
     ContextInternal ctx = promise.context();
-    EventLoopContext eventLoopContext;
-    if (ctx instanceof EventLoopContext) {
-      eventLoopContext = (EventLoopContext) ctx;
+    ContextInternal eventLoopContext;
+    if (ctx.isEventLoopContext()) {
+      eventLoopContext = ctx;
     } else {
       eventLoopContext = vertx.createEventLoopContext(ctx.nettyEventLoop(), ctx.workerPool(), ctx.classLoader());
     }
@@ -596,9 +595,9 @@ public class HttpClientImpl implements HttpClient, MetricsProvider, Closeable {
     PromiseInternal<HttpClientRequest> requestPromise) {
     ContextInternal ctx = requestPromise.context();
     EndpointKey key = new EndpointKey(useSSL, proxyOptions, server, peerAddress);
-    EventLoopContext eventLoopContext;
-    if (ctx instanceof EventLoopContext) {
-      eventLoopContext = (EventLoopContext) ctx;
+    ContextInternal eventLoopContext;
+    if (ctx.isEventLoopContext()) {
+      eventLoopContext = ctx;
     } else {
       eventLoopContext = vertx.createEventLoopContext(ctx.nettyEventLoop(), ctx.workerPool(), ctx.classLoader());
     }

@@ -28,7 +28,7 @@ import java.util.concurrent.RejectedExecutionException;
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
-abstract class ContextImpl extends AbstractContext {
+public class ContextImpl extends AbstractContext {
 
   /**
    * Execute the {@code task} disabling the thread-local association for the duration
@@ -75,7 +75,7 @@ abstract class ContextImpl extends AbstractContext {
   final WorkerPool workerPool;
   final TaskQueue orderedTasks;
 
-  ContextImpl(VertxInternal vertx,
+  public ContextImpl(VertxInternal vertx,
               int kind,
               EventLoop eventLoop,
               WorkerPool internalBlockingPool,
@@ -263,13 +263,18 @@ abstract class ContextImpl extends AbstractContext {
 
   @Override
   boolean inThread() {
-    switch (kind) {
-      case KIND_EVENT_LOOP:
-        return nettyEventLoop().inEventLoop();
-      case KIND_WORKER:
-        return Context.isOnWorkerThread();
-      default:
-        throw new UnsupportedOperationException();
+    if (kind == KIND_EVENT_LOOP) {
+      return eventLoop.inEventLoop();
+    } else {
+      return inThread2();
+    }
+  }
+
+  private boolean inThread2() {
+    if (kind == KIND_WORKER) {
+      return Context.isOnWorkerThread();
+    } else {
+      throw new UnsupportedOperationException();
     }
   }
 
@@ -278,80 +283,58 @@ abstract class ContextImpl extends AbstractContext {
     runOnContext(this, action);
   }
 
-  void runOnContext(AbstractContext ctx, Handler<Void> action) {
-    switch (kind) {
-      case KIND_EVENT_LOOP:
-        try {
-          nettyEventLoop().execute(() -> ctx.dispatch(action));
-        } catch (RejectedExecutionException ignore) {
-          // Pool is already shut down
-        }
-        break;
-      case KIND_WORKER:
-        try {
-          runTask(orderedTasks, null, v -> ctx.dispatch(action));
-        } catch (RejectedExecutionException ignore) {
-          // Pool is already shut down
-        }
-        break;
-      default:
-        ctx.dispatch(null, action);
+  void runOnContext(ContextInternal ctx, Handler<Void> action) {
+    if (kind == KIND_EVENT_LOOP) {
+      try {
+        nettyEventLoop().execute(() -> ctx.dispatch(action));
+      } catch (RejectedExecutionException ignore) {
+        // Pool is already shut down
+      }
+    } else {
+      runOnContext2(ctx, action);
+    }
+  }
+
+  private void runOnContext2(ContextInternal ctx, Handler<Void> action) {
+    if (kind == KIND_WORKER) {
+      try {
+        runTask(orderedTasks, null, v -> ctx.dispatch(action));
+      } catch (RejectedExecutionException ignore) {
+        // Pool is already shut down
+      }
+    } else {
+      ctx.dispatch(null, action);
     }
   }
 
   @Override
   public void execute(Runnable task) {
-    execute(this, task);
-  }
-
-  void execute(AbstractContext ctx, Runnable task) {
-    switch (kind) {
-      case KIND_EVENT_LOOP:
-        EventLoop eventLoop = nettyEventLoop();
-        if (eventLoop.inEventLoop()) {
-          task.run();
-        } else {
-          eventLoop.execute(task);
-        }
-        break;
-      case KIND_WORKER:
-        if (Context.isOnWorkerThread()) {
-          task.run();
-        } else {
-          runTask(orderedTasks, task, Runnable::run);
-        }
-        break;
-      default:
-        task.run();
-        break;
-    }
+    execute(task, Runnable::run);
   }
 
   @Override
   public final <T> void execute(T argument, Handler<T> task) {
-    execute(this, argument, task);
+    if (kind == KIND_EVENT_LOOP) {
+      EventLoop eventLoop = nettyEventLoop();
+      if (eventLoop.inEventLoop()) {
+        task.handle(argument);
+      } else {
+        eventLoop.execute(() -> task.handle(argument));
+      }
+    } else {
+      execute2(argument, task);
+    }
   }
 
-  <T> void execute(AbstractContext ctx, T argument, Handler<T> task) {
-    switch (kind) {
-      case KIND_EVENT_LOOP:
-        EventLoop eventLoop = nettyEventLoop();
-        if (eventLoop.inEventLoop()) {
-          task.handle(argument);
-        } else {
-          eventLoop.execute(() -> task.handle(argument));
-        }
-        break;
-      case KIND_WORKER:
-        if (Context.isOnWorkerThread()) {
-          task.handle(argument);
-        } else {
-          runTask(orderedTasks, argument, task);
-        }
-        break;
-      default:
+  private <T> void execute2(T argument, Handler<T> task) {
+    if (kind == KIND_WORKER) {
+      if (Context.isOnWorkerThread()) {
         task.handle(argument);
-        break;
+      } else {
+        runTask(orderedTasks, argument, task);
+      }
+    } else {
+      task.handle(argument);
     }
   }
 
@@ -360,32 +343,35 @@ abstract class ContextImpl extends AbstractContext {
     emit(this, argument, task);
   }
 
-  <T> void emit(AbstractContext ctx, T argument, Handler<T> task) {
-    switch (kind) {
-      case KIND_EVENT_LOOP:
-        EventLoop eventLoop = nettyEventLoop();
-        if (eventLoop.inEventLoop()) {
-          ContextInternal prev = ctx.beginDispatch();
-          try {
-            task.handle(argument);
-          } catch (Throwable t) {
-            reportException(t);
-          } finally {
-            ctx.endDispatch(prev);
-          }
-        } else {
-          eventLoop.execute(() -> emit(ctx, argument, task));
+  <T> void emit(ContextInternal ctx, T argument, Handler<T> task) {
+    if (kind == KIND_EVENT_LOOP) {
+      EventLoop eventLoop = nettyEventLoop();
+      if (eventLoop.inEventLoop()) {
+        ContextInternal prev = ctx.beginDispatch();
+        try {
+          task.handle(argument);
+        } catch (Throwable t) {
+          reportException(t);
+        } finally {
+          ctx.endDispatch(prev);
         }
-        break;
-      case KIND_WORKER:
-        if (Context.isOnWorkerThread()) {
-          ctx.dispatch(argument, task);
-        } else {
-          runTask(orderedTasks, argument, arg -> ctx.dispatch(arg, task));
-        }
-        break;
-      default:
-        throw new UnsupportedOperationException();
+      } else {
+        eventLoop.execute(() -> emit(ctx, argument, task));
+      }
+    } else {
+      emit2(ctx, argument, task);
+    }
+  }
+
+  private <T> void emit2(ContextInternal ctx, T argument, Handler<T> task) {
+    if (kind == KIND_WORKER) {
+      if (Context.isOnWorkerThread()) {
+        ctx.dispatch(argument, task);
+      } else {
+        runTask(orderedTasks, argument, arg -> ctx.dispatch(arg, task));
+      }
+    } else {
+      throw new UnsupportedOperationException();
     }
   }
 

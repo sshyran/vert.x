@@ -25,7 +25,6 @@ import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
 import io.vertx.core.http.HttpVersion;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.impl.ContextInternal;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -171,7 +170,7 @@ public class Http2UpgradedClientConnection implements HttpClientConnection {
         public void upgradeTo(ChannelHandlerContext ctx, FullHttpResponse upgradeResponse) throws Exception {
 
           // Now we need to upgrade this to an HTTP2
-          VertxHttp2ConnectionHandler<Http2ClientConnection> handler = Http2ClientConnection.createHttp2ConnectionHandler(upgradedConnection.client, upgradingConnection.metrics, (EventLoopContext) upgradingConnection.getContext(), upgradedConnection.current.metric(), conn -> {
+          VertxHttp2ConnectionHandler<Http2ClientConnection> handler = Http2ClientConnection.createHttp2ConnectionHandler(upgradedConnection.client, upgradingConnection.metrics, upgradingConnection.getContext(), upgradedConnection.current.metric(), conn -> {
             conn.upgradeStream(upgradingStream.metric(), upgradingStream.getContext(), ar -> {
               upgradingConnection.closeHandler(null);
               upgradingConnection.exceptionHandler(null);

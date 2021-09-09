@@ -24,7 +24,6 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.http.*;
 import io.vertx.core.impl.ContextInternal;
-import io.vertx.core.impl.EventLoopContext;
 import io.vertx.core.spi.metrics.HttpServerMetrics;
 
 import java.net.URI;
@@ -47,7 +46,7 @@ public class Http2ServerConnection extends Http2ConnectionBase implements HttpSe
   private final ArrayDeque<Push> pendingPushes = new ArrayDeque<>(8);
 
   Http2ServerConnection(
-    EventLoopContext context,
+    ContextInternal context,
     Supplier<ContextInternal> streamContextSupplier,
     String serverOrigin,
     VertxHttp2ConnectionHandler connHandler,
