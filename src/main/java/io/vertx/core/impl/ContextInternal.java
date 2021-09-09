@@ -116,15 +116,17 @@ public interface ContextInternal extends Context {
   VertxInternal owner();
 
   /**
-   * Emit the given {@code argument} event to the {@code task} and switch on this context if necessary, this also associates the
-   * current thread with the current context so {@link Vertx#currentContext()} returns this context.
-   * <br/>
-   * Any exception thrown from the {@literal task} will be reported on this context.
-   * <br/>
-   * Calling this method is equivalent to {@code execute(v -> dispatch(argument, task))}
+   * Emit the given {@code argument} to the {@code task} and switch on this context if necessary, this also associates the
+   * current thread with the current context so {@link Vertx#currentContext()} returns this context. This is equivalent
+   * to {@code execute(v -> dispatch(argument, task))
+   *
+   * <p> When the current thread is already the correct thread, the task is executed directly, otherwise the task is
+   * scheduled for execution on one of the context threads, e.g. the event loop thread or one of the worker threads.
+   *
+   * <p> Any exception thrown from the {@literal task} will be reported on this context.
    *
    * @param argument the {@code task} argument
-   * @param task the handler to execute with the {@code event} argument
+   * @param task the handler to execute with the {@code argument}
    */
   <T> void emit(T argument, Handler<T> task);
 
@@ -139,16 +141,16 @@ public interface ContextInternal extends Context {
   void execute(Handler<Void> task);
 
   /**
-   * Execute the {@code task} on this context, it will be executed according to the
-   * context concurrency model.
-   *
-   * @param task the task to execute
+   * @see #execute(Handler)
    */
   void execute(Runnable task);
 
   /**
-   * Execute a {@code task} on this context, the task will be executed according to the
+   * Execute a {@code task} on this context, the task is executed according to the
    * context concurrency model.
+   *
+   * <p> When the current thread is already the correct thread, the task is executed directly, otherwise the task is
+   * scheduled for execution on one of the context threads, e.g. the event loop thread or one of the worker threads.
    *
    * @param argument the {@code task} argument
    * @param task the task to execute
