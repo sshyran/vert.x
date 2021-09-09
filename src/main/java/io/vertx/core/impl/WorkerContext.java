@@ -11,13 +11,6 @@
 
 package io.vertx.core.impl;
 
-import io.vertx.core.Context;
-import io.vertx.core.Handler;
-import io.vertx.core.spi.metrics.PoolMetrics;
-
-import java.util.Objects;
-import java.util.concurrent.RejectedExecutionException;
-
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
@@ -30,89 +23,7 @@ public class WorkerContext extends ContextImpl {
                 CloseFuture closeFuture,
                 ClassLoader tccl,
                 boolean disableTCCL) {
-    super(vertx, vertx.getEventLoopGroup().next(), internalBlockingPool, workerPool, deployment, closeFuture, tccl, disableTCCL);
+    super(vertx, KIND_WORKER, vertx.getEventLoopGroup().next(), internalBlockingPool, workerPool, deployment, closeFuture, tccl, disableTCCL);
   }
 
-  @Override
-  void runOnContext(AbstractContext ctx, Handler<Void> action) {
-    try {
-      run(ctx, orderedTasks, null, action);
-    } catch (RejectedExecutionException ignore) {
-      // Pool is already shut down
-    }
-  }
-
-  /**
-   * <ul>
-   *   <li>When the current thread is a worker thread of this context the implementation will execute the {@code task} directly</li>
-   *   <li>Otherwise the task will be scheduled on the worker thread for execution</li>
-   * </ul>
-   */
-  @Override
-  <T> void execute(AbstractContext ctx, T argument, Handler<T> task) {
-    execute(orderedTasks, argument, task);
-  }
-
-  @Override
-  <T> void emit(AbstractContext ctx, T argument, Handler<T> task) {
-    execute(orderedTasks, argument, arg -> {
-      ctx.dispatch(arg, task);
-    });
-  }
-
-  @Override
-  <T> void execute(AbstractContext ctx, Runnable task) {
-    execute(this, task, Runnable::run);
-  }
-
-  @Override
-  public boolean isEventLoopContext() {
-    return false;
-  }
-
-  private <T> void run(ContextInternal ctx, TaskQueue queue, T value, Handler<T> task) {
-    Objects.requireNonNull(task, "Task handler must not be null");
-    PoolMetrics metrics = workerPool.metrics();
-    Object queueMetric = metrics != null ? metrics.submitted() : null;
-    queue.execute(() -> {
-      Object execMetric = null;
-      if (metrics != null) {
-        execMetric = metrics.begin(queueMetric);
-      }
-      try {
-        ctx.dispatch(value, task);
-      } finally {
-        if (metrics != null) {
-          metrics.end(execMetric, true);
-        }
-      }
-    }, workerPool.executor());
-  }
-
-  private <T> void execute(TaskQueue queue, T argument, Handler<T> task) {
-    if (Context.isOnWorkerThread()) {
-      task.handle(argument);
-    } else {
-      PoolMetrics metrics = workerPool.metrics();
-      Object queueMetric = metrics != null ? metrics.submitted() : null;
-      queue.execute(() -> {
-        Object execMetric = null;
-        if (metrics != null) {
-          execMetric = metrics.begin(queueMetric);
-        }
-        try {
-          task.handle(argument);
-        } finally {
-          if (metrics != null) {
-            metrics.end(execMetric, true);
-          }
-        }
-      }, workerPool.executor());
-    }
-  }
-
-  @Override
-  boolean inThread() {
-    return Context.isOnWorkerThread();
-  }
 }

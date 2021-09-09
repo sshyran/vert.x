@@ -19,6 +19,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.spi.metrics.PoolMetrics;
 import io.vertx.core.spi.tracing.VertxTracer;
 
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -55,12 +56,17 @@ abstract class ContextImpl extends AbstractContext {
   private static final String DISABLE_TIMINGS_PROP_NAME = "vertx.disableContextTimings";
   static final boolean DISABLE_TIMINGS = Boolean.getBoolean(DISABLE_TIMINGS_PROP_NAME);
 
+  static final int KIND_EVENT_LOOP = 0;
+  static final int KIND_WORKER = 1;
+  static final int KIND_BENCHMARK = 2;
+
   protected final VertxInternal owner;
   protected final JsonObject config;
   private final Deployment deployment;
   private final CloseFuture closeFuture;
   private final ClassLoader tccl;
   private final EventLoop eventLoop;
+  private final int kind;
   private ConcurrentMap<Object, Object> data;
   private ConcurrentMap<Object, Object> localData;
   private volatile Handler<Throwable> exceptionHandler;
@@ -70,6 +76,7 @@ abstract class ContextImpl extends AbstractContext {
   final TaskQueue orderedTasks;
 
   ContextImpl(VertxInternal vertx,
+              int kind,
               EventLoop eventLoop,
               WorkerPool internalBlockingPool,
               WorkerPool workerPool,
@@ -81,6 +88,7 @@ abstract class ContextImpl extends AbstractContext {
     this.deployment = deployment;
     this.config = deployment != null ? deployment.config() : new JsonObject();
     this.eventLoop = eventLoop;
+    this.kind = kind;
     this.tccl = tccl;
     this.owner = vertx;
     this.workerPool = workerPool;
@@ -249,35 +257,159 @@ abstract class ContextImpl extends AbstractContext {
   }
 
   @Override
+  public boolean isEventLoopContext() {
+    return kind == KIND_EVENT_LOOP;
+  }
+
+  @Override
+  boolean inThread() {
+    switch (kind) {
+      case KIND_EVENT_LOOP:
+        return nettyEventLoop().inEventLoop();
+      case KIND_WORKER:
+        return Context.isOnWorkerThread();
+      default:
+        throw new UnsupportedOperationException();
+    }
+  }
+
+  @Override
   public final void runOnContext(Handler<Void> action) {
     runOnContext(this, action);
   }
 
-  abstract void runOnContext(AbstractContext ctx, Handler<Void> action);
+  void runOnContext(AbstractContext ctx, Handler<Void> action) {
+    switch (kind) {
+      case KIND_EVENT_LOOP:
+        try {
+          nettyEventLoop().execute(() -> ctx.dispatch(action));
+        } catch (RejectedExecutionException ignore) {
+          // Pool is already shut down
+        }
+        break;
+      case KIND_WORKER:
+        try {
+          runTask(orderedTasks, null, v -> ctx.dispatch(action));
+        } catch (RejectedExecutionException ignore) {
+          // Pool is already shut down
+        }
+        break;
+      default:
+        ctx.dispatch(null, action);
+    }
+  }
 
   @Override
   public void execute(Runnable task) {
     execute(this, task);
   }
 
-  abstract <T> void execute(AbstractContext ctx, Runnable task);
+  void execute(AbstractContext ctx, Runnable task) {
+    switch (kind) {
+      case KIND_EVENT_LOOP:
+        EventLoop eventLoop = nettyEventLoop();
+        if (eventLoop.inEventLoop()) {
+          task.run();
+        } else {
+          eventLoop.execute(task);
+        }
+        break;
+      case KIND_WORKER:
+        if (Context.isOnWorkerThread()) {
+          task.run();
+        } else {
+          runTask(orderedTasks, task, Runnable::run);
+        }
+        break;
+      default:
+        task.run();
+        break;
+    }
+  }
 
   @Override
   public final <T> void execute(T argument, Handler<T> task) {
     execute(this, argument, task);
   }
 
-  abstract <T> void execute(AbstractContext ctx, T argument, Handler<T> task);
+  <T> void execute(AbstractContext ctx, T argument, Handler<T> task) {
+    switch (kind) {
+      case KIND_EVENT_LOOP:
+        EventLoop eventLoop = nettyEventLoop();
+        if (eventLoop.inEventLoop()) {
+          task.handle(argument);
+        } else {
+          eventLoop.execute(() -> task.handle(argument));
+        }
+        break;
+      case KIND_WORKER:
+        if (Context.isOnWorkerThread()) {
+          task.handle(argument);
+        } else {
+          runTask(orderedTasks, argument, task);
+        }
+        break;
+      default:
+        task.handle(argument);
+        break;
+    }
+  }
 
   @Override
   public <T> void emit(T argument, Handler<T> task) {
     emit(this, argument, task);
   }
 
-  abstract <T> void emit(AbstractContext ctx, T argument, Handler<T> task);
+  <T> void emit(AbstractContext ctx, T argument, Handler<T> task) {
+    switch (kind) {
+      case KIND_EVENT_LOOP:
+        EventLoop eventLoop = nettyEventLoop();
+        if (eventLoop.inEventLoop()) {
+          ContextInternal prev = ctx.beginDispatch();
+          try {
+            task.handle(argument);
+          } catch (Throwable t) {
+            reportException(t);
+          } finally {
+            ctx.endDispatch(prev);
+          }
+        } else {
+          eventLoop.execute(() -> emit(ctx, argument, task));
+        }
+        break;
+      case KIND_WORKER:
+        if (Context.isOnWorkerThread()) {
+          ctx.dispatch(argument, task);
+        } else {
+          runTask(orderedTasks, argument, arg -> ctx.dispatch(arg, task));
+        }
+        break;
+      default:
+        throw new UnsupportedOperationException();
+    }
+  }
 
   @Override
   public final ContextInternal duplicate() {
     return new DuplicatedContext(this);
+  }
+
+  private <T> void runTask(TaskQueue queue, T value, Handler<T> task) {
+    Objects.requireNonNull(task, "Task handler must not be null");
+    PoolMetrics metrics = workerPool.metrics();
+    Object queueMetric = metrics != null ? metrics.submitted() : null;
+    queue.execute(() -> {
+      Object execMetric = null;
+      if (metrics != null) {
+        execMetric = metrics.begin(queueMetric);
+      }
+      try {
+        task.handle(value);
+      } finally {
+        if (metrics != null) {
+          metrics.end(execMetric, true);
+        }
+      }
+    }, workerPool.executor());
   }
 }

@@ -11,7 +11,6 @@
 
 package io.vertx.core.impl;
 
-import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 
 /**
@@ -30,42 +29,6 @@ public class BenchmarkContext extends ContextImpl {
   }
 
   public BenchmarkContext(VertxInternal vertx, WorkerPool internalBlockingPool, WorkerPool workerPool, ClassLoader tccl) {
-    super(vertx, vertx.getEventLoopGroup().next(), internalBlockingPool, workerPool, null, null, tccl, false);
+    super(vertx, KIND_BENCHMARK, vertx.getEventLoopGroup().next(), internalBlockingPool, workerPool, null, null, tccl, false);
   }
-
-  @Override
-  boolean inThread() {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  <T> void emit(AbstractContext ctx, T argument, Handler<T> task) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  void runOnContext(AbstractContext ctx, Handler<Void> action) {
-    ctx.dispatch(null, action);
-  }
-
-  @Override
-  <T> void execute(AbstractContext ctx, T argument, Handler<T> task) {
-    task.handle(argument);
-  }
-
-  @Override
-  <T> void execute(AbstractContext ctx, Runnable task) {
-    task.run();
-  }
-
-  @Override
-  public void execute(Runnable task) {
-    task.run();
-  }
-
-  @Override
-  public boolean isEventLoopContext() {
-    return false;
-  }
-
 }
