@@ -262,6 +262,11 @@ public class ContextImpl extends AbstractContext {
   }
 
   @Override
+  public boolean isWorkerContext() {
+    return kind == KIND_WORKER;
+  }
+
+  @Override
   boolean inThread() {
     if (kind == KIND_EVENT_LOOP) {
       return eventLoop.inEventLoop();

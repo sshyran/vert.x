@@ -179,6 +179,11 @@ class DuplicatedContext extends AbstractContext {
   }
 
   @Override
+  public boolean isWorkerContext() {
+    return delegate.isWorkerContext();
+  }
+
+  @Override
   public ContextInternal duplicate() {
     return new DuplicatedContext(delegate);
   }

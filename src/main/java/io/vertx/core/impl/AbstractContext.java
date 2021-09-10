@@ -34,19 +34,11 @@ abstract class AbstractContext implements ContextInternal {
   }
 
   @Override
-  public abstract boolean isEventLoopContext();
-
-  @Override
   public final boolean isRunningOnContext() {
     return Vertx.currentContext() == this && inThread();
   }
 
   abstract boolean inThread();
-
-  @Override
-  public boolean isWorkerContext() {
-    return !isEventLoopContext();
-  }
 
   @Override
   public void emit(Handler<Void> task) {
