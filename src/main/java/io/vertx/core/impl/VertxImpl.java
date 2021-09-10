@@ -57,6 +57,7 @@ import io.vertx.core.shareddata.SharedData;
 import io.vertx.core.shareddata.impl.SharedDataImpl;
 import io.vertx.core.spi.ExecutorServiceFactory;
 import io.vertx.core.spi.VerticleFactory;
+import io.vertx.core.spi.VertxContextFactory;
 import io.vertx.core.spi.VertxThreadFactory;
 import io.vertx.core.spi.cluster.ClusterManager;
 import io.vertx.core.spi.cluster.NodeSelector;
@@ -112,6 +113,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   final WorkerPool workerPool;
   final WorkerPool internalWorkerPool;
   private final VertxThreadFactory threadFactory;
+  private final VertxContextFactory contextFactory;
   private final ExecutorServiceFactory executorServiceFactory;
   private final ThreadFactory eventLoopThreadFactory;
   private final EventLoopGroup eventLoopGroup;
@@ -132,11 +134,18 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   private final CloseFuture closeFuture;
   private final Transport transport;
   private final VertxTracer tracer;
-  private final ThreadLocal<WeakReference<AbstractContext>> stickyContext = new ThreadLocal<>();
+  private final ThreadLocal<WeakReference<ContextInternal>> stickyContext = new ThreadLocal<>();
   private final boolean disableTCCL;
 
-  VertxImpl(VertxOptions options, ClusterManager clusterManager, NodeSelector nodeSelector, VertxMetrics metrics,
-            VertxTracer<?, ?> tracer, Transport transport, FileResolver fileResolver, VertxThreadFactory threadFactory,
+  VertxImpl(VertxOptions options,
+            ClusterManager clusterManager,
+            NodeSelector nodeSelector,
+            VertxMetrics metrics,
+            VertxTracer<?, ?> tracer,
+            Transport transport,
+            FileResolver fileResolver,
+            VertxThreadFactory threadFactory,
+            VertxContextFactory contextFactory,
             ExecutorServiceFactory executorServiceFactory) {
     // Sanity check
     if (Vertx.currentContext() != null) {
@@ -170,6 +179,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
 
     this.executorServiceFactory = executorServiceFactory;
     this.threadFactory = threadFactory;
+    this.contextFactory = contextFactory;
     this.metrics = metrics;
     this.transport = transport;
     this.fileResolver = fileResolver;
@@ -423,7 +433,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   public ContextInternal getOrCreateContext() {
-    AbstractContext ctx = getContext();
+    ContextInternal ctx = getContext();
     if (ctx == null) {
       // We are running embedded - Create a context
       ctx = createEventLoopContext();
@@ -472,27 +482,27 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   @Override
-  public AbstractContext createEventLoopContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new ContextImpl(this, ContextImpl.KIND_EVENT_LOOP, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+  public ContextInternal createEventLoopContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
+    return contextFactory.newVertxContext(this, ContextImpl.KIND_EVENT_LOOP, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public AbstractContext createEventLoopContext(EventLoop eventLoop, WorkerPool workerPool, ClassLoader tccl) {
+  public ContextInternal createEventLoopContext(EventLoop eventLoop, WorkerPool workerPool, ClassLoader tccl) {
     return new ContextImpl(this, ContextImpl.KIND_EVENT_LOOP, eventLoop, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, null, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public AbstractContext createEventLoopContext() {
+  public ContextInternal createEventLoopContext() {
     return createEventLoopContext(null, closeFuture, null, Thread.currentThread().getContextClassLoader());
   }
 
   @Override
-  public AbstractContext createWorkerContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new ContextImpl(this, ContextImpl.KIND_WORKER, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+  public ContextInternal createWorkerContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
+    return contextFactory.newVertxContext(this, ContextImpl.KIND_WORKER, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
   }
 
   @Override
-  public AbstractContext createWorkerContext() {
+  public ContextInternal createWorkerContext() {
     return createWorkerContext(null, closeFuture, null, Thread.currentThread().getContextClassLoader());
   }
 
@@ -534,12 +544,12 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
     return timerId;
   }
 
-  public AbstractContext getContext() {
-    AbstractContext context = (AbstractContext) ContextInternal.current();
+  public ContextInternal getContext() {
+    ContextInternal context = ContextInternal.current();
     if (context != null && context.owner() == this) {
       return context;
     } else {
-      WeakReference<AbstractContext> ref = stickyContext.get();
+      WeakReference<ContextInternal> ref = stickyContext.get();
       return ref != null ? ref.get() : null;
     }
   }
@@ -1181,7 +1191,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   private CloseFuture resolveCloseFuture() {
-    AbstractContext context = getContext();
+    ContextInternal context = getContext();
     return context != null ? context.closeFuture() : closeFuture;
   }
 }

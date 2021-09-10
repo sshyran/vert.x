@@ -78,7 +78,7 @@ public class ContextImpl extends AbstractContext {
   public ContextImpl(VertxInternal vertx,
               int kind,
               EventLoop eventLoop,
-              WorkerPool internalBlockingPool,
+              WorkerPool internalWorkerPool,
               WorkerPool workerPool,
               Deployment deployment,
               CloseFuture closeFuture,
@@ -93,7 +93,7 @@ public class ContextImpl extends AbstractContext {
     this.owner = vertx;
     this.workerPool = workerPool;
     this.closeFuture = closeFuture;
-    this.internalBlockingPool = internalBlockingPool;
+    this.internalBlockingPool = internalWorkerPool;
     this.orderedTasks = new TaskQueue();
     this.internalOrderedTasks = new TaskQueue();
   }
