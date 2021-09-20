@@ -47,9 +47,12 @@ public class SynchronizationTest extends AsyncTestBase {
         sync.submit(state2 -> {
           isReentrant1.set(inCallback.get());
           latch.countDown();
-          return () -> {
-            isReentrant2.set(inCallback.get());
-            latch.countDown();
+          return new Task() {
+            @Override
+            public void run() {
+              isReentrant2.set(inCallback.get());
+              latch.countDown();
+            }
           };
         });
       } finally {
@@ -68,20 +71,26 @@ public class SynchronizationTest extends AsyncTestBase {
     AtomicBoolean isReentrant2 = new AtomicBoolean();
     Executor<Object> sync = new CombinerExecutor<>(new Object());
     CountDownLatch latch = new CountDownLatch(1);
-    sync.submit(state1 -> () -> {
-      AtomicBoolean inCallback = new AtomicBoolean();
-      inCallback.set(true);
-      try {
-        sync.submit(state2 -> {
-          isReentrant1.set(inCallback.get());
-          latch.countDown();
-          return () -> {
-            isReentrant2.set(inCallback.get());
+    sync.submit(state1 -> new Task() {
+      @Override
+      public void run() {
+        AtomicBoolean inCallback = new AtomicBoolean();
+        inCallback.set(true);
+        try {
+          sync.submit(state2 -> {
+            isReentrant1.set(inCallback.get());
             latch.countDown();
-          };
-        });
-      } finally {
-        inCallback.set(false);
+            return new Task() {
+              @Override
+              public void run() {
+                isReentrant2.set(inCallback.get());
+                latch.countDown();
+              }
+            };
+          });
+        } finally {
+          inCallback.set(false);
+        }
       }
     });
     awaitLatch(latch);
