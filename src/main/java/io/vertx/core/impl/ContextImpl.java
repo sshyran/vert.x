@@ -38,13 +38,14 @@ abstract class ContextImpl extends AbstractContext {
   static void executeIsolated(Handler<Void> task) {
     Thread currentThread = Thread.currentThread();
     if (currentThread instanceof VertxThread) {
-      VertxThread vertxThread = (VertxThread) currentThread;
-      ContextInternal prev = vertxThread.beginEmission(null);
-      try {
-        task.handle(null);
-      } finally {
-        vertxThread.endEmission(prev);
-      }
+//      VertxThread vertxThread = (VertxThread) currentThread;
+//      ContextInternal prev = vertxThread.beginEmission(null);
+//      try {
+//        task.handle(null);
+//      } finally {
+//        vertxThread.endEmission(prev);
+//      }
+      task.handle(null);
     } else {
       task.handle(null);
     }
@@ -75,9 +76,7 @@ abstract class ContextImpl extends AbstractContext {
               WorkerPool workerPool,
               Deployment deployment,
               CloseFuture closeFuture,
-              ClassLoader tccl,
-              boolean disableTCCL) {
-    super(disableTCCL);
+              ClassLoader tccl) {
     this.deployment = deployment;
     this.config = deployment != null ? deployment.config() : new JsonObject();
     this.eventLoop = eventLoop;

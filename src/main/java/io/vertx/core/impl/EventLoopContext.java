@@ -27,9 +27,8 @@ public class EventLoopContext extends ContextImpl {
                    WorkerPool workerPool,
                    Deployment deployment,
                    CloseFuture closeFuture,
-                   ClassLoader tccl,
-                   boolean disableTCCL) {
-    super(vertx, eventLoop, internalBlockingPool, workerPool, deployment, closeFuture, tccl, disableTCCL);
+                   ClassLoader tccl) {
+    super(vertx, eventLoop, internalBlockingPool, workerPool, deployment, closeFuture, tccl);
   }
 
   @Override

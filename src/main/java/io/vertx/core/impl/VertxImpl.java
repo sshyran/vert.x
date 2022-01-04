@@ -456,12 +456,12 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
 
   @Override
   public EventLoopContext createEventLoopContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new EventLoopContext(this, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+    return new EventLoopContext(this, eventLoopGroup.next(), internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, disableTCCL ? null : tccl);
   }
 
   @Override
   public EventLoopContext createEventLoopContext(EventLoop eventLoop, WorkerPool workerPool, ClassLoader tccl) {
-    return new EventLoopContext(this, eventLoop, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, null, closeFuture, tccl, disableTCCL);
+    return new EventLoopContext(this, eventLoop, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, null, closeFuture, disableTCCL ? tccl : null);
   }
 
   @Override
@@ -471,7 +471,7 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
 
   @Override
   public WorkerContext createWorkerContext(Deployment deployment, CloseFuture closeFuture, WorkerPool workerPool, ClassLoader tccl) {
-    return new WorkerContext(this, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, tccl, disableTCCL);
+    return new WorkerContext(this, internalWorkerPool, workerPool != null ? workerPool : this.workerPool, deployment, closeFuture, disableTCCL ? null : tccl);
   }
 
   @Override
@@ -1118,5 +1118,56 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   private CloseFuture resolveCloseFuture() {
     AbstractContext context = getContext();
     return context != null ? context.closeFuture() : closeFuture;
+  }
+
+  /**
+   * Begin the emission of a context event.
+   * <p>
+   * This is a low level interface that should not be used, instead {@link ContextInternal#dispatch(Object, io.vertx.core.Handler)}
+   * shall be used.
+   *
+   * @param context the context on which the event is emitted on
+   * @return the current context that shall be restored
+   */
+  ContextInternal beginEmission(ContextInternal context) {
+    VertxThread th = (VertxThread) Thread.currentThread();
+    ContextInternal prev = th.context;
+    if (!ContextImpl.DISABLE_TIMINGS) {
+      th.executeStart();
+    }
+    if (prev == null) {
+      th.topLevelTCCL = Thread.currentThread().getContextClassLoader();
+    }
+    th.context = context;
+    if (!disableTCCL) {
+      th.setContextClassLoader(context.classLoader());
+    }
+    return prev;
+  }
+
+  /**
+   * End the emission of a context task.
+   * <p>
+   * This is a low level interface that should not be used, instead {@link ContextInternal#dispatch(Object, io.vertx.core.Handler)}
+   * shall be used.
+   *
+   * @param prev the previous context thread to restore, might be {@code null}
+   */
+  void endEmission(ContextInternal prev) {
+    VertxThread th = (VertxThread) Thread.currentThread();
+    th.context = prev;
+    if (!disableTCCL) {
+      ClassLoader cl;
+      if (prev == null) {
+        cl = th.topLevelTCCL;
+        th.topLevelTCCL = null;
+      } else {
+        cl = prev.classLoader();
+      }
+      Thread.currentThread().setContextClassLoader(cl);
+    }
+    if (!ContextImpl.DISABLE_TIMINGS) {
+      th.executeEnd();
+    }
   }
 }
