@@ -11,13 +11,6 @@
 package io.vertx.core.impl;
 
 import io.vertx.core.*;
-import io.vertx.core.impl.future.FailedFuture;
-import io.vertx.core.impl.future.PromiseImpl;
-import io.vertx.core.impl.future.PromiseInternal;
-import io.vertx.core.impl.future.SucceededFuture;
-import io.vertx.core.impl.launcher.VertxCommandLauncher;
-
-import java.util.List;
 
 /**
  * A context implementation that does not hold any specific state.
@@ -42,26 +35,6 @@ abstract class AbstractContext implements ContextInternal {
   }
 
   abstract boolean inThread();
-
-  @Override
-  public boolean isWorkerContext() {
-    return !isEventLoopContext();
-  }
-
-  @Override
-  public void emit(Handler<Void> task) {
-    emit(null, task);
-  }
-
-  @Override
-  public final void execute(Handler<Void> task) {
-    execute(null, task);
-  }
-
-  @Override
-  public final void dispatch(Handler<Void> handler) {
-    dispatch(null, handler);
-  }
 
   public final ContextInternal beginDispatch() {
     ContextInternal prev;
@@ -93,138 +66,7 @@ abstract class AbstractContext implements ContextInternal {
     return owner.scheduleTimeout(this, handler, delay, false);
   }
 
-  @Override
-  public final <T> void dispatch(T event, Handler<T> handler) {
-    ContextInternal prev = beginDispatch();
-    try {
-      handler.handle(event);
-    } catch (Throwable t) {
-      reportException(t);
-    } finally {
-      endDispatch(prev);
-    }
-  }
-
-  public final void dispatch(Runnable handler) {
-    ContextInternal prev = beginDispatch();
-    try {
-      handler.run();
-    } catch (Throwable t) {
-      reportException(t);
-    } finally {
-      endDispatch(prev);
-    }
-  }
-
-  @Override
-  public final List<String> processArgs() {
-    return VertxCommandLauncher.getProcessArguments();
-  }
-
-  @Override
-  public final <T> void executeBlockingInternal(Handler<Promise<T>> action, Handler<AsyncResult<T>> resultHandler) {
-    Future<T> fut = executeBlockingInternal(action);
-    setResultHandler(this, fut, resultHandler);
-  }
-
-  @Override
-  public <T> void executeBlockingInternal(Handler<Promise<T>> action, boolean ordered, Handler<AsyncResult<T>> resultHandler) {
-    Future<T> fut = executeBlockingInternal(action, ordered);
-    setResultHandler(this, fut, resultHandler);
-  }
-
-  @Override
-  public <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, boolean ordered, Handler<AsyncResult<T>> resultHandler) {
-    Future<T> fut = executeBlocking(blockingCodeHandler, ordered);
-    setResultHandler(this, fut, resultHandler);
-  }
-
-  @Override
-  public <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, TaskQueue queue, Handler<AsyncResult<T>> resultHandler) {
-    Future<T> fut = executeBlocking(blockingCodeHandler, queue);
-    setResultHandler(this, fut, resultHandler);
-  }
-
-  @Override
-  public final <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, Handler<AsyncResult<T>> resultHandler) {
-    executeBlocking(blockingCodeHandler, true, resultHandler);
-  }
-
-  public <T> Future<T> executeBlocking(Handler<Promise<T>> blockingCodeHandler) {
-    return executeBlocking(blockingCodeHandler, true);
-  }
-
-  @Override
-  public <T> PromiseInternal<T> promise() {
-    return new PromiseImpl<>(this);
-  }
-
-  @Override
-  public <T> PromiseInternal<T> promise(Handler<AsyncResult<T>> handler) {
-    if (handler instanceof PromiseInternal) {
-      PromiseInternal<T> promise = (PromiseInternal<T>) handler;
-      if (promise.context() != null) {
-        return promise;
-      }
-    }
-    PromiseInternal<T> promise = promise();
-    promise.future().onComplete(handler);
-    return promise;
-  }
-
-  @Override
-  public <T> Future<T> succeededFuture() {
-    return new SucceededFuture<>(this, null);
-  }
-
-  @Override
-  public <T> Future<T> succeededFuture(T result) {
-    return new SucceededFuture<>(this, result);
-  }
-
-  @Override
-  public <T> Future<T> failedFuture(Throwable failure) {
-    return new FailedFuture<>(this, failure);
-  }
-
-  @Override
-  public <T> Future<T> failedFuture(String message) {
-    return new FailedFuture<>(this, message);
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public final <T> T get(Object key) {
-    return (T) contextData().get(key);
-  }
-
-  @Override
-  public final void put(Object key, Object value) {
-    contextData().put(key, value);
-  }
-
-  @Override
-  public final boolean remove(Object key) {
-    return contextData().remove(key) != null;
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public final <T> T getLocal(Object key) {
-    return (T) localContextData().get(key);
-  }
-
-  @Override
-  public final void putLocal(Object key, Object value) {
-    localContextData().put(key, value);
-  }
-
-  @Override
-  public final boolean removeLocal(Object key) {
-    return localContextData().remove(key) != null;
-  }
-
-  private static <T> void setResultHandler(ContextInternal ctx, Future<T> fut, Handler<AsyncResult<T>> resultHandler) {
+  static <T> void setResultHandler(ContextInternal ctx, Future<T> fut, Handler<AsyncResult<T>> resultHandler) {
     if (resultHandler != null) {
       fut.onComplete(resultHandler);
     } else {

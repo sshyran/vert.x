@@ -14,10 +14,15 @@ package io.vertx.core.impl;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import io.vertx.core.*;
+import io.vertx.core.impl.future.FailedFuture;
+import io.vertx.core.impl.future.PromiseImpl;
 import io.vertx.core.impl.future.PromiseInternal;
+import io.vertx.core.impl.future.SucceededFuture;
 import io.vertx.core.spi.tracing.VertxTracer;
 
 import java.util.concurrent.ConcurrentMap;
+
+import static io.vertx.core.impl.AbstractContext.setResultHandler;
 
 /**
  * This interface provides an api for vert.x core internal use only
@@ -50,39 +55,62 @@ public interface ContextInternal extends Context {
   /**
    * @return a {@link Promise} associated with this context
    */
-  <T> PromiseInternal<T> promise();
+  default <T> PromiseInternal<T> promise() {
+    return new PromiseImpl<>(this);
+  }
 
   /**
    * @return a {@link Promise} associated with this context or the {@code handler}
    *         if that handler is already an instance of {@code PromiseInternal}
    */
-  <T> PromiseInternal<T> promise(Handler<AsyncResult<T>> handler);
+  default <T> PromiseInternal<T> promise(Handler<AsyncResult<T>> handler) {
+    if (handler instanceof PromiseInternal) {
+      PromiseInternal<T> promise = (PromiseInternal<T>) handler;
+      if (promise.context() != null) {
+        return promise;
+      }
+    }
+    PromiseInternal<T> promise = promise();
+    promise.future().onComplete(handler);
+    return promise;
+  }
 
   /**
    * @return an empty succeeded {@link Future} associated with this context
    */
-  <T> Future<T> succeededFuture();
+  default <T> Future<T> succeededFuture() {
+    return new SucceededFuture<>(this, null);
+  }
 
   /**
    * @return a succeeded {@link Future} of the {@code result} associated with this context
    */
-  <T> Future<T> succeededFuture(T result);
+  default <T> Future<T> succeededFuture(T result) {
+    return new SucceededFuture<>(this, result);
+  }
 
   /**
    * @return a {@link Future} failed with the {@code failure} associated with this context
    */
-  <T> Future<T> failedFuture(Throwable failure);
+  default <T> Future<T> failedFuture(Throwable failure) {
+    return new FailedFuture<>(this, failure);
+  }
 
   /**
    * @return a {@link Future} failed with the {@code message} associated with this context
    */
-  <T> Future<T> failedFuture(String message);
+  default <T> Future<T> failedFuture(String message) {
+    return new FailedFuture<>(this, message);
+  }
 
   /**
    * Like {@link #executeBlocking(Handler, boolean, Handler)} but uses the {@code queue} to order the tasks instead
    * of the internal queue of this context.
    */
-  <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, TaskQueue queue, Handler<AsyncResult<T>> resultHandler);
+  default <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, TaskQueue queue, Handler<AsyncResult<T>> resultHandler) {
+    Future<T> fut = executeBlocking(blockingCodeHandler, queue);
+    setResultHandler(this, fut, resultHandler);
+  }
 
   /**
    * Like {@link #executeBlocking(Handler, boolean)} but uses the {@code queue} to order the tasks instead
@@ -93,9 +121,21 @@ public interface ContextInternal extends Context {
   /**
    * Execute an internal task on the internal blocking ordered executor.
    */
-  <T> void executeBlockingInternal(Handler<Promise<T>> action, Handler<AsyncResult<T>> resultHandler);
+  default <T> void executeBlockingInternal(Handler<Promise<T>> action, Handler<AsyncResult<T>> resultHandler) {
+    Future<T> fut = executeBlockingInternal(action);
+    setResultHandler(this, fut, resultHandler);
+  }
 
-  <T> void executeBlockingInternal(Handler<Promise<T>> action, boolean ordered, Handler<AsyncResult<T>> resultHandler);
+  default <T> void executeBlockingInternal(Handler<Promise<T>> action, boolean ordered, Handler<AsyncResult<T>> resultHandler) {
+    Future<T> fut = executeBlockingInternal(action, ordered);
+    setResultHandler(this, fut, resultHandler);
+  }
+
+  @Override
+  default <T> void executeBlocking(Handler<Promise<T>> blockingCodeHandler, boolean ordered, Handler<AsyncResult<T>> resultHandler) {
+    Future<T> fut = executeBlocking(blockingCodeHandler, ordered);
+    setResultHandler(this, fut, resultHandler);
+  }
 
   /**
    * Like {@link #executeBlockingInternal(Handler, Handler)} but returns a {@code Future} of the asynchronous result
@@ -131,12 +171,16 @@ public interface ContextInternal extends Context {
   /**
    * @see #emit(Object, Handler)
    */
-  void emit(Handler<Void> task);
+  default void emit(Handler<Void> task) {
+    emit(null, task);
+  }
 
   /**
    * @see #execute(Object, Handler)
    */
-  void execute(Handler<Void> task);
+  default void execute(Handler<Void> task) {
+    execute(null, task);
+  }
 
   /**
    * Execute the {@code task} on this context, it will be executed according to the
@@ -163,12 +207,23 @@ public interface ContextInternal extends Context {
   /**
    * @see #dispatch(Handler)
    */
-  void dispatch(Runnable handler);
+  default void dispatch(Runnable handler) {
+    ContextInternal prev = beginDispatch();
+    try {
+      handler.run();
+    } catch (Throwable t) {
+      reportException(t);
+    } finally {
+      endDispatch(prev);
+    }
+  }
 
   /**
    * @see #dispatch(Object, Handler)
    */
-  void dispatch(Handler<Void> handler);
+  default void dispatch(Handler<Void> handler) {
+    dispatch(null, handler);
+  }
 
   /**
    * Dispatch an {@code event} to the {@code handler} on this context.
@@ -182,7 +237,16 @@ public interface ContextInternal extends Context {
    * @param event the event for the {@code handler}
    * @param handler the handler to execute with the {@code event}
    */
-  <E> void dispatch(E event, Handler<E> handler);
+  default <E> void dispatch(E event, Handler<E> handler) {
+    ContextInternal prev = beginDispatch();
+    try {
+      handler.handle(event);
+    } catch (Throwable t) {
+      reportException(t);
+    } finally {
+      endDispatch(prev);
+    }
+  }
 
   /**
    * Begin the execution of a task on this context.
@@ -224,10 +288,42 @@ public interface ContextInternal extends Context {
    */
   ConcurrentMap<Object, Object> contextData();
 
+  @SuppressWarnings("unchecked")
+  @Override
+  default <T> T get(Object key) {
+    return (T) contextData().get(key);
+  }
+
+  @Override
+  default void put(Object key, Object value) {
+    contextData().put(key, value);
+  }
+
+  @Override
+  default boolean remove(Object key) {
+    return contextData().remove(key) != null;
+  }
+
   /**
    * @return the {@link ConcurrentMap} used to store local context data
    */
   ConcurrentMap<Object, Object> localContextData();
+
+  @SuppressWarnings("unchecked")
+  @Override
+  default <T> T getLocal(Object key) {
+    return (T) localContextData().get(key);
+  }
+
+  @Override
+  default void putLocal(Object key, Object value) {
+    localContextData().put(key, value);
+  }
+
+  @Override
+  default boolean removeLocal(Object key) {
+    return localContextData().remove(key) != null;
+  }
 
   /**
    * @return the classloader associated with this context
