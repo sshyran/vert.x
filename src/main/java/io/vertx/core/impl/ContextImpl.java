@@ -254,7 +254,7 @@ abstract class ContextImpl extends AbstractContext {
   abstract <T> void emit(AbstractContext ctx, T argument, Handler<T> task);
 
   @Override
-  public final ContextInternal duplicate() {
+  public ContextInternal duplicate() {
     return new DuplicatedContext(this);
   }
 }
