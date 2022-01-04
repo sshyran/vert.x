@@ -18,7 +18,7 @@ import io.vertx.core.*;
  * @author <a href="mailto:julien@julienviet.com">Julien Viet</a>
  * @author <a href="http://tfox.org">Tim Fox</a>
  */
-abstract class AbstractContext implements ContextInternal {
+public abstract class AbstractContext implements ContextInternal {
 
   @Override
   public abstract boolean isEventLoopContext();
@@ -28,16 +28,16 @@ abstract class AbstractContext implements ContextInternal {
     return Vertx.currentContext() == this && inThread();
   }
 
-  abstract boolean inThread();
+  protected abstract boolean inThread();
 
   public final ContextInternal beginDispatch() {
     VertxImpl vertx = (VertxImpl) owner();
-    return vertx.beginEmission(this);
+    return vertx.beginDispatch(this);
   }
 
   public final void endDispatch(ContextInternal previous) {
     VertxImpl vertx = (VertxImpl) owner();
-    vertx.endEmission(previous);
+    vertx.endDispatch(previous);
   }
 
   @Override

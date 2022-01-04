@@ -32,7 +32,7 @@ public class EventLoopContext extends ContextImpl {
   }
 
   @Override
-  void runOnContext(AbstractContext ctx, Handler<Void> action) {
+  protected void runOnContext(AbstractContext ctx, Handler<Void> action) {
     try {
       nettyEventLoop().execute(() -> ctx.dispatch(action));
     } catch (RejectedExecutionException ignore) {
@@ -74,7 +74,7 @@ public class EventLoopContext extends ContextImpl {
   }
 
   @Override
-  <T> void execute(AbstractContext ctx, Runnable task) {
+  protected <T> void execute(AbstractContext ctx, Runnable task) {
     EventLoop eventLoop = nettyEventLoop();
     if (eventLoop.inEventLoop()) {
       task.run();
@@ -89,7 +89,7 @@ public class EventLoopContext extends ContextImpl {
   }
 
   @Override
-  boolean inThread() {
+  protected boolean inThread() {
     return nettyEventLoop().inEventLoop();
   }
 

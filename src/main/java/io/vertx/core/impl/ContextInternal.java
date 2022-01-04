@@ -37,9 +37,14 @@ public interface ContextInternal extends Context {
    * @return the current context
    */
   static ContextInternal current() {
-    Thread current = Thread.currentThread();
-    if (current instanceof VertxThread) {
-      return ((VertxThread) current).context();
+    Thread thread = Thread.currentThread();
+    if (thread instanceof VertxThread) {
+      return ((VertxThread) thread).context();
+    } else {
+      VertxImpl.ContextDispatch current = VertxImpl.nonVertxContextDispatch.get();
+      if (current != null) {
+        return current.context;
+      }
     }
     return null;
   }

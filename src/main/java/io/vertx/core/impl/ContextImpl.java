@@ -29,28 +29,6 @@ import java.util.concurrent.RejectedExecutionException;
  */
 abstract class ContextImpl extends AbstractContext {
 
-  /**
-   * Execute the {@code task} disabling the thread-local association for the duration
-   * of the execution. {@link Vertx#currentContext()} will return {@code null},
-   * @param task the task to execute
-   * @throws IllegalStateException if the current thread is not a Vertx thread
-   */
-  static void executeIsolated(Handler<Void> task) {
-    Thread currentThread = Thread.currentThread();
-    if (currentThread instanceof VertxThread) {
-//      VertxThread vertxThread = (VertxThread) currentThread;
-//      ContextInternal prev = vertxThread.beginEmission(null);
-//      try {
-//        task.handle(null);
-//      } finally {
-//        vertxThread.endEmission(prev);
-//      }
-      task.handle(null);
-    } else {
-      task.handle(null);
-    }
-  }
-
   private static final Logger log = LoggerFactory.getLogger(ContextImpl.class);
 
   private static final String DISABLE_TIMINGS_PROP_NAME = "vertx.disableContextTimings";
@@ -252,14 +230,14 @@ abstract class ContextImpl extends AbstractContext {
     runOnContext(this, action);
   }
 
-  abstract void runOnContext(AbstractContext ctx, Handler<Void> action);
+  protected abstract void runOnContext(AbstractContext ctx, Handler<Void> action);
 
   @Override
   public void execute(Runnable task) {
     execute(this, task);
   }
 
-  abstract <T> void execute(AbstractContext ctx, Runnable task);
+  protected abstract <T> void execute(AbstractContext ctx, Runnable task);
 
   @Override
   public final <T> void execute(T argument, Handler<T> task) {

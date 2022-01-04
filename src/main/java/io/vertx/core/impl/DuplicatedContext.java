@@ -42,7 +42,7 @@ class DuplicatedContext extends AbstractContext {
   }
 
   @Override
-  boolean inThread() {
+  protected boolean inThread() {
     return delegate.inThread();
   }
 

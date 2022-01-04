@@ -1121,6 +1121,35 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
   }
 
   /**
+   * Execute the {@code task} disabling the thread-local association for the duration
+   * of the execution. {@link Vertx#currentContext()} will return {@code null},
+   * @param task the task to execute
+   * @throws IllegalStateException if the current thread is not a Vertx thread
+   */
+  void executeIsolated(Handler<Void> task) {
+    if (Thread.currentThread() instanceof VertxThread) {
+      ContextInternal prev = beginDispatch(null);
+      try {
+        task.handle(null);
+      } finally {
+        endDispatch(prev);
+      }
+    } else {
+      task.handle(null);
+    }
+  }
+
+  static class ContextDispatch {
+    ContextInternal context;
+    ClassLoader topLevelTCCL;
+  }
+
+  /**
+   * Context dispatch info for context running with non vertx threads (Loom).
+   */
+  static final ThreadLocal<ContextDispatch> nonVertxContextDispatch = new ThreadLocal<>();
+
+  /**
    * Begin the emission of a context event.
    * <p>
    * This is a low level interface that should not be used, instead {@link ContextInternal#dispatch(Object, io.vertx.core.Handler)}
@@ -1129,18 +1158,46 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
    * @param context the context on which the event is emitted on
    * @return the current context that shall be restored
    */
-  ContextInternal beginEmission(ContextInternal context) {
-    VertxThread th = (VertxThread) Thread.currentThread();
-    ContextInternal prev = th.context;
-    if (!ContextImpl.DISABLE_TIMINGS) {
-      th.executeStart();
+  ContextInternal beginDispatch(ContextInternal context) {
+    Thread thread = Thread.currentThread();
+    ContextInternal prev;
+    if (thread instanceof VertxThread) {
+      VertxThread vertxThread = (VertxThread) thread;
+      prev = vertxThread.context;
+      if (!ContextImpl.DISABLE_TIMINGS) {
+        vertxThread.executeStart();
+      }
+      vertxThread.context = context;
+      if (!disableTCCL) {
+        if (prev == null) {
+          vertxThread.topLevelTCCL = Thread.currentThread().getContextClassLoader();
+        }
+        if (context != null) {
+          thread.setContextClassLoader(context.classLoader());
+        }
+      }
+    } else {
+      prev = beginDispatch2(thread, context);
     }
-    if (prev == null) {
-      th.topLevelTCCL = Thread.currentThread().getContextClassLoader();
+    return prev;
+  }
+
+  private ContextInternal beginDispatch2(Thread thread, ContextInternal context) {
+    ContextDispatch current = nonVertxContextDispatch.get();
+    ContextInternal prev;
+    if (current != null) {
+      prev = current.context;
+    } else {
+      current = new ContextDispatch();
+      nonVertxContextDispatch.set(current);
+      prev = null;
     }
-    th.context = context;
+    current.context = context;
     if (!disableTCCL) {
-      th.setContextClassLoader(context.classLoader());
+      if (prev == null) {
+        current.topLevelTCCL = Thread.currentThread().getContextClassLoader();
+      }
+      thread.setContextClassLoader(context.classLoader());
     }
     return prev;
   }
@@ -1153,21 +1210,41 @@ public class VertxImpl implements VertxInternal, MetricsProvider {
    *
    * @param prev the previous context thread to restore, might be {@code null}
    */
-  void endEmission(ContextInternal prev) {
-    VertxThread th = (VertxThread) Thread.currentThread();
-    th.context = prev;
-    if (!disableTCCL) {
-      ClassLoader cl;
-      if (prev == null) {
-        cl = th.topLevelTCCL;
-        th.topLevelTCCL = null;
-      } else {
-        cl = prev.classLoader();
+  void endDispatch(ContextInternal prev) {
+    Thread thread = Thread.currentThread();
+    if (thread instanceof VertxThread) {
+      VertxThread vertxThread = (VertxThread) thread;
+      vertxThread.context = prev;
+      if (!disableTCCL) {
+        ClassLoader tccl;
+        if (prev == null) {
+          tccl = vertxThread.topLevelTCCL;
+          vertxThread.topLevelTCCL = null;
+        } else {
+          tccl = prev.classLoader();
+        }
+        Thread.currentThread().setContextClassLoader(tccl);
       }
-      Thread.currentThread().setContextClassLoader(cl);
+      if (!ContextImpl.DISABLE_TIMINGS) {
+        vertxThread.executeEnd();
+      }
+    } else {
+      endDispatch2(prev);
     }
-    if (!ContextImpl.DISABLE_TIMINGS) {
-      th.executeEnd();
+  }
+
+  private void endDispatch2(ContextInternal prev) {
+    ClassLoader tccl;
+    ContextDispatch current = nonVertxContextDispatch.get();
+    if (prev != null) {
+      current.context = prev;
+      tccl = prev.classLoader();
+    } else {
+      nonVertxContextDispatch.remove();
+      tccl = current.topLevelTCCL;
+    }
+    if (!disableTCCL) {
+      Thread.currentThread().setContextClassLoader(tccl);
     }
   }
 }
