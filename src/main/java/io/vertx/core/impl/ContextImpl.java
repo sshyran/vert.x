@@ -77,16 +77,6 @@ abstract class ContextImpl extends AbstractContext {
   }
 
   @Override
-  public boolean isDeployment() {
-    return deployment != null;
-  }
-
-  @Override
-  public String deploymentID() {
-    return deployment != null ? deployment.deploymentID() : null;
-  }
-
-  @Override
   public JsonObject config() {
     return config;
   }
@@ -210,19 +200,6 @@ abstract class ContextImpl extends AbstractContext {
   @Override
   public Handler<Throwable> exceptionHandler() {
     return exceptionHandler;
-  }
-
-  public int getInstanceCount() {
-    // the no verticle case
-    if (deployment == null) {
-      return 0;
-    }
-
-    // the single verticle without an instance flag explicitly defined
-    if (deployment.deploymentOptions() == null) {
-      return 1;
-    }
-    return deployment.deploymentOptions().getInstances();
   }
 
   @Override

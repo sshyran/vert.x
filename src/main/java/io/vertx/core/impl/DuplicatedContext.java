@@ -52,28 +52,13 @@ class DuplicatedContext extends AbstractContext {
   }
 
   @Override
-  public final boolean isDeployment() {
-    return delegate.isDeployment();
-  }
-
-  @Override
   public final VertxTracer tracer() {
     return delegate.tracer();
   }
 
   @Override
-  public final String deploymentID() {
-    return delegate.deploymentID();
-  }
-
-  @Override
   public final JsonObject config() {
     return delegate.config();
-  }
-
-  @Override
-  public final int getInstanceCount() {
-    return delegate.getInstanceCount();
   }
 
   @Override

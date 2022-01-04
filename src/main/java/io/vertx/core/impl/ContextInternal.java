@@ -265,7 +265,10 @@ public interface ContextInternal extends Context {
    * @return the previous context that shall be restored after or {@code null} if there is none
    * @throws IllegalStateException when the current thread of execution cannot execute this task
    */
-  ContextInternal beginDispatch();
+  default ContextInternal beginDispatch() {
+    VertxImpl vertx = (VertxImpl) owner();
+    return vertx.beginDispatch(this);
+  }
 
   /**
    * End the execution of a task on this context, see {@link #beginDispatch()}
@@ -275,7 +278,10 @@ public interface ContextInternal extends Context {
    * @param previous the previous context to restore or {@code null} if there is none
    * @throws IllegalStateException when the current thread of execution cannot execute this task
    */
-  void endDispatch(ContextInternal previous);
+  default void endDispatch(ContextInternal previous) {
+    VertxImpl vertx = (VertxImpl) owner();
+    vertx.endDispatch(previous);
+  }
 
   /**
    * Report an exception to this context synchronously.
@@ -369,17 +375,45 @@ public interface ContextInternal extends Context {
   /**
    * Like {@link Vertx#setPeriodic(long, Handler)} except the periodic timer will fire on this context.
    */
-  long setPeriodic(long delay, Handler<Long> handler);
+  default long setPeriodic(long delay, Handler<Long> handler) {
+    VertxImpl owner = (VertxImpl) owner();
+    return owner.scheduleTimeout(this, handler, delay, true);
+  }
 
   /**
    * Like {@link Vertx#setTimer(long, Handler)} except the timer will fire on this context.
    */
-  long setTimer(long delay, Handler<Long> handler);
+  default long setTimer(long delay, Handler<Long> handler) {
+    VertxImpl owner = (VertxImpl) owner();
+    return owner.scheduleTimeout(this, handler, delay, false);
+  }
 
   /**
    * @return {@code true} when the context is associated with a deployment
    */
-  boolean isDeployment();
+  default boolean isDeployment() {
+    return getDeployment() != null;
+  }
+
+  default String deploymentID() {
+    Deployment deployment = getDeployment();
+    return deployment != null ? deployment.deploymentID() : null;
+  }
+
+  default int getInstanceCount() {
+    Deployment deployment = getDeployment();
+
+    // the no verticle case
+    if (deployment == null) {
+      return 0;
+    }
+
+    // the single verticle without an instance flag explicitly defined
+    if (deployment.deploymentOptions() == null) {
+      return 1;
+    }
+    return deployment.deploymentOptions().getInstances();
+  }
 
   CloseFuture closeFuture();
 
