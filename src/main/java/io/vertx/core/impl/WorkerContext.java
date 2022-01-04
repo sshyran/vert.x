@@ -111,7 +111,7 @@ public class WorkerContext extends ContextImpl {
   }
 
   @Override
-  protected boolean inThread() {
+  public boolean inThread() {
     return Context.isOnWorkerThread();
   }
 }

@@ -20,13 +20,6 @@ import io.vertx.core.*;
  */
 public abstract class AbstractContext implements ContextInternal {
 
-  @Override
-  public final boolean isRunningOnContext() {
-    return Vertx.currentContext() == this && inThread();
-  }
-
-  protected abstract boolean inThread();
-
   static <T> void setResultHandler(ContextInternal ctx, Future<T> fut, Handler<AsyncResult<T>> resultHandler) {
     if (resultHandler != null) {
       fut.onComplete(resultHandler);

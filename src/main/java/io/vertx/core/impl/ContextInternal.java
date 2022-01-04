@@ -160,6 +160,8 @@ public interface ContextInternal extends Context {
   @Override
   VertxInternal owner();
 
+  boolean inThread();
+
   /**
    * Emit the given {@code argument} event to the {@code task} and switch on this context if necessary, this also associates the
    * current thread with the current context so {@link Vertx#currentContext()} returns this context.
@@ -207,7 +209,9 @@ public interface ContextInternal extends Context {
   /**
    * @return whether the current thread is running on this context
    */
-  boolean isRunningOnContext();
+  default boolean isRunningOnContext() {
+    return Vertx.currentContext() == this && inThread();
+  }
 
   /**
    * @see #dispatch(Handler)
